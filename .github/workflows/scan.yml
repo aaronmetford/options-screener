@@ -1,0 +1,45 @@
+name: Daily Options Scan
+
+on:
+  # Run at 21:05 UTC = ~5:05 PM ET (EDT, summer).
+  # In winter (EST) markets close at 21:00 UTC — change to 22:05 UTC.
+  schedule:
+    - cron: '5 21 * * 1-5'    # weekdays only
+
+  # Also allows you to trigger a scan manually from the Actions tab on GitHub.
+  workflow_dispatch:
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write    # needed so the job can commit results back
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run scan
+        # MARKETDATA_TOKEN comes from GitHub Secrets — never hard-coded.
+        # python-dotenv skips .env when the variable is already in the environment.
+        run: python scan.py
+        env:
+          MARKETDATA_TOKEN: ${{ secrets.MARKETDATA_TOKEN }}
+
+      - name: Commit results back to repo
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add results_*.csv report_*.html scanner.db
+          # Only commit if something actually changed
+          git diff --staged --quiet || git commit -m "scan: $(date -u +%Y-%m-%d)"
+          git push
